@@ -1,26 +1,36 @@
 import cv2
-import mediapipe as mp
-mp_hands=mp.solutions.hands
-mp_hands=mp_hands.Hands(min_detection_confidence=0.7,min_tracking_confidence=0.7)
-mp_draw=mp.solutions.drawing_utils
-cap=cv2.VideoCapture(0)
+import numpy as np
+
+cap = cv2.VideoCapture(0)
+
 if not cap.isOpened():
-    print("Error:Could not access the webcam.")
+    print("Error: Could not open webcam.")
     exit()
-print("Hand Tracking Started! Press'q' to quit")
-def detect_gesture(hand_landmarks):
-    landmarks=hand_landmarks.landmark
-    tip_ids=[4,8,12,16,20]
-    pip_ids=[2,6,10,14,18]
-    extended=0
-    if abs(landmarks[tip_ids[0]].x-landmarks[pip_ids[0]].x)>0.04:
-        extended+=1
-    for i in range(1,5):
-        if landmarks[tip_ids[i]].y<landmarks[pip_ids[i]].y:
-            extended+=1
-    if extended>=4:
-        return "Open"
-    elif extended<=1:
-        return "Closed Fist"
-    else:
-        return "Partial"
+
+while True:
+    ret, frame = cap.read()
+
+    if not ret:
+        print("Error: Failed to capture image.")
+        break
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    lower_skin = np.array([0, 20, 70], dtype=np.uint8)
+    upper_skin = np.array([20, 255, 255], dtype=np.uint8)
+    mask = cv2.inRange(hsv, lower_skin, upper_skin)
+    result = cv2.bitwise_and(frame, frame, mask=mask)
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if contours:
+        max_contour = max(contours, key=cv2.contourArea)  
+        if cv2.contourArea(max_contour) > 500:  
+            x, y, w, h = cv2.boundingRect(max_contour)
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            center_x = int(x + w / 2)
+            center_y = int(y + h / 2)
+            cv2.circle(frame, (center_x, center_y), 5, (0, 0, 255), -1) 
+    cv2.imshow('Original Frame', frame)
+    cv2.imshow('Filtered Frame', result)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
